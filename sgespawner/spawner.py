@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import subprocess
@@ -86,8 +85,11 @@ class SGESpawner(Spawner):
         self.user.server.port = random_port()
 
         cmd = self.cmd_prefix.copy()
-        cmd.extend(['qsub', '-b', 'y', '-j', 'y',
-                    '-N', 'jupyterhub', '-wd', '/home/{}'.format(self.user.name)])
+        cmd.extend(['qsub',
+                    '-b', 'y',
+                    '-j', 'y',
+                    '-N', 'jupyterhub',
+                    '-wd', '/home/{}'.format(self.user.name)])
         cmd.extend([sys.executable, '-m', 'jupyterhub.singleuser'])
         cmd.extend(self.get_args())
 
@@ -116,7 +118,8 @@ class SGESpawner(Spawner):
     @gen.coroutine
     def stop(self, now=False):
         if self.jobid:
-            ret = subprocess.Popen(self.cmd_prefix + ['qdel', '{}'.format(self.jobid)],
+            ret = subprocess.Popen(self.cmd_prefix +
+                                   ['qdel', '{}'.format(self.jobid)],
                                    env=self.env)
             self.log.info("SGE: {}".format(ret))
 
