@@ -2,7 +2,6 @@
 #import sys
 import time
 from subprocess import Popen, PIPE, STDOUT, run
-#import tempfile
 
 import jinja2
 from tornado import gen
@@ -84,55 +83,53 @@ class SGESpawner(Spawner):
     @gen.coroutine
     def start(self):
         """
-        Submit the job to the queue and wait for it to start
+        Submit the job to the queue and wait for it to start.
         """
         self.user.server.port = random_port()
 
-        #tmpdir = os.environ['TMPDIR'] if 'TMPDIR' in os.environ else '/tmp'
-        #file_descr, tmpfile = tempfile.mkstemp(dir=tmpdir, text=True)
-        #with open(tmpfile, 'w') as f:
-        #    f.write(jinja2.Template(self.sge_template).render(
-        #        working_dir='/home/{}'.format(self.user.name),
-        #        jh_args=self.get_args()))
+        # Open a (Jinja2) template for a batch job
         with open(self.sge_template, 'r') as f:
+            # Instantiate the template using the username and
+            # some arguments for the single-user Jupyter server process
             batch_job_submission_script = jinja2.Template(f.read()).render(
                 working_dir='/home/{}'.format(self.user.name),
                 jh_args=' '.join(self.get_args()))
-        self.log.info("SGE: batch job sub script: '{}'".format(batch_job_submission_script))
-        cmd = self.cmd_prefix.copy()
-        cmd.extend(['qsub',
-                    '-v', 'JPY_API_TOKEN',
-                    #tmpfile
-                    ])
-        # NOT NEEDED ANY MORE
-        #            '-wd', '/home/{}'.format(self.user.name)])
-        #cmd.extend([sys.executable, '-m', 'jupyterhub.singleuser'])
-        #cmd.extend(self.get_args())
 
+        self.log.info("SGE: batch job sub script: '{}'".format(
+            batch_job_submission_script))
+
+        # Ensure command for submitting job run as correct user
+        # by prefixing command with sudo -u <username>
+        cmd = self.cmd_prefix.copy()
+        # Ensure the JupyterHub API token is defined in
+        # the worker session
+        cmd.extend(['qsub', '-v', 'JPY_API_TOKEN'])
         self.log.info("SGE: CMD: {}".format(cmd))
 
         env = self.env.copy()
-
-        #self.proc = Popen(cmd, stdin=batch_job_submission_script,
-        #                             env=env, stdout=PIPE)
-        #r = self.proc.stdout.read().decode('utf-8')
         self.proc = Popen(cmd,
                           stdout=PIPE,
                           stdin=PIPE,
                           stderr=STDOUT,
                           env=env)
+        # Pipe the batch job submission script (filled-in Jinja2 template)
+        # to the job submission script (saves having to create a temporary
+        # file and deal with permissions)
         r = self.proc.communicate(
             input=batch_job_submission_script.encode('utf-8'))[0].decode('utf-8')
         self.log.info("SGE: {}".format(r))
+        # Get the ID of the job submitted to SGE
         jid = int(r.split('Your job ')[1].split()[0])
         self.jobid = jid
 
+        # Wait until the worker session has started
         state = self.qstat_t(jid, 'state')
         while state != 'r':
             time.sleep(2)
             state = self.qstat_t(jid, 'state')
             self.log.info("SGE: Job State: {}".format(state))
 
+        # Get and store the IP of the host of the worker session
         host = self.qstat_t(jid, 'host')
         host = host.split('@')[1].split('.')[0]
         self.log.info("SGE: The single user server"
