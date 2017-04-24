@@ -2,6 +2,8 @@
 
 A Sun Grid Engine (SGE) [Spawner](http://jupyterhub.readthedocs.io/en/latest/spawners.html) for [JupyterHub](https://jupyterhub.readthedocs.io/).
 
+Designed to work with JupyterHub 0.3 but may work with more recent versions too.
+
 ## Installation and usage
 
 1. Install `sgespawner` into the same Python environment as JupyterHub using e.g. `pip install /path/to/sge/clone`
