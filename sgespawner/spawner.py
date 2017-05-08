@@ -3,7 +3,7 @@ from subprocess import Popen, PIPE, STDOUT, run
 
 import jinja2
 from tornado import gen
-from traitlets import Dict, Unicode
+from traitlets import Unicode
 
 from jupyterhub.utils import random_port
 from jupyterhub.spawner import Spawner
@@ -57,24 +57,32 @@ class SGESpawner(Spawner):
         return state
 
     def load_state(self, state):
+        """Load state from the database."""
         super(SGESpawner, self).load_state(state)
         if 'jobid' in state:
             self.jobid = state['jobid']
 
     def get_state(self):
+        """Get the current state."""
         state = super(SGESpawner, self).get_state()
         if self.jobid:
             state['jobid'] = self.jobid
         return state
 
     def clear_state(self):
+        """Clear any state (called after shutdown)."""
         super(SGESpawner, self).clear_state()
         self.jobid = None
 
     @gen.coroutine
     def start(self):
         """
-        Submit the job to the queue and wait for it to start.
+        Submit the (single-user Jupyter server) job to SGE and wait for it to start.
+
+        Also stores the IP and port of the single-user server in self.user.server.
+
+        NB you can relax the Spawner.start_timeout config value as necessary to
+        ensure that the SGE job is given enough time to start.
         """
         self.user.server.port = random_port()
 
@@ -129,6 +137,10 @@ class SGESpawner(Spawner):
 
     @gen.coroutine
     def stop(self, now=False):
+        """Stop the SGESpawner session.
+
+        A Tornado coroutine that returns when the process has finished exiting.
+        """
         if self.jobid:
             ret = Popen(self.cmd_prefix +
                         ['qdel', '{}'.format(self.jobid)],
@@ -137,11 +149,16 @@ class SGESpawner(Spawner):
 
     @gen.coroutine
     def poll(self):
+        """Checks if the SGESpawner session is still running.
+
+        Returns None if it is still running and an integer exit status otherwise
+        """
         if self.jobid is None:
             return 0
         state = self.qstat_t(self.jobid, 'state')
         if state:
             if state == 'r':
+                # The session is running
                 return None
             else:  # qw is not an option here.
                 return 1
