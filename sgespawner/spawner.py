@@ -14,8 +14,6 @@ __all__ = ['SGESpawner']
 
 class SGESpawner(Spawner):
 
-    sge_env = Dict({}, config=True,
-                   help="Extra SGE environment variables needed to submit a job ")
     sge_template = Unicode('', config=True,
                    help="Filename of Jinja 2 template for a SGE batch job script")
 
@@ -72,12 +70,6 @@ class SGESpawner(Spawner):
     def clear_state(self):
         super(SGESpawner, self).clear_state()
         self.jobid = None
-
-    def _env_default(self):
-        env = super(SGESpawner, self)._env_default()
-        env.update(self.sge_env)
-
-        return env
 
     @gen.coroutine
     def start(self):
