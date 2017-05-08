@@ -20,6 +20,6 @@ setup(
     install_requires=[
         'markdown',
         'jinja2',
-        'jupyterhub>=0.3'
+        'jupyterhub>=0.7.2'
     ],
 )

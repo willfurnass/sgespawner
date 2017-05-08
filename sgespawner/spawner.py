@@ -1,5 +1,3 @@
-#import os
-#import sys
 import time
 from subprocess import Popen, PIPE, STDOUT, run
 
@@ -24,6 +22,7 @@ class SGESpawner(Spawner):
     def __init__(self, *args, **kwargs):
         super(SGESpawner, self).__init__(*args, **kwargs)
         self.cmd_prefix = ['sudo', '-u', self.user.name]
+        self.jobid = None
 
     def qstat_t(self, jobid, column):
         """
@@ -146,6 +145,8 @@ class SGESpawner(Spawner):
 
     @gen.coroutine
     def poll(self):
+        if self.jobid is None:
+            return 0
         state = self.qstat_t(self.jobid, 'state')
         if state:
             if state == 'r':

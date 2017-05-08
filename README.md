@@ -2,7 +2,7 @@
 
 A Sun Grid Engine (SGE) [Spawner](http://jupyterhub.readthedocs.io/en/latest/spawners.html) for [JupyterHub](https://jupyterhub.readthedocs.io/).
 
-Designed to work with JupyterHub 0.3 but may work with more recent versions too.
+Designed to work with JupyterHub 0.7.2 but may work with more recent versions too.
 
 ## Installation and usage
 
