@@ -44,7 +44,7 @@ class SGESpawner(Spawner):
         """
         qstat_columns = {'state': 4, 'host': 7}
         ret = run(self.cmd_prefix + ['qstat', '-t'],
-                             stdout=PIPE, env=self.env)
+                             stdout=PIPE, env=self.get_env())
 
         jobinfo = ret.stdout.decode('utf-8')
 
@@ -105,12 +105,11 @@ class SGESpawner(Spawner):
         cmd.extend(['qsub', '-v', 'JPY_API_TOKEN'])
         self.log.info("SGE: CMD: {}".format(cmd))
 
-        env = self.env.copy()
         self.proc = Popen(cmd,
                           stdout=PIPE,
                           stdin=PIPE,
                           stderr=STDOUT,
-                          env=env)
+                          env=self.get_env())
         # Pipe the batch job submission script (filled-in Jinja2 template)
         # to the job submission script (saves having to create a temporary
         # file and deal with permissions)
@@ -144,7 +143,7 @@ class SGESpawner(Spawner):
         if self.jobid:
             ret = Popen(self.cmd_prefix +
                         ['qdel', '{}'.format(self.jobid)],
-                        env=self.env)
+                        env=self.get_env())
             self.log.info("SGE: {}".format(ret))
 
     @gen.coroutine
