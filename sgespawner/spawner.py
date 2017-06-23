@@ -92,7 +92,8 @@ class SGESpawner(Spawner):
             # some arguments for the single-user Jupyter server process
             batch_job_submission_script = jinja2.Template(f.read()).render(
                 working_dir='/home/{}'.format(self.user.name),
-                jh_args=' '.join(self.get_args()))
+                jh_args=' '.join(self.get_args()),
+                user_options=self.user_options)
 
         self.log.info("SGE: batch job sub script: '{}'".format(
             batch_job_submission_script))
