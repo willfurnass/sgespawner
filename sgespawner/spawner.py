@@ -1,11 +1,9 @@
-#import os
-#import sys
 import time
 from subprocess import Popen, PIPE, STDOUT, run
 
 import jinja2
 from tornado import gen
-from traitlets import Dict, Unicode
+from traitlets import Unicode
 
 from jupyterhub.utils import random_port
 from jupyterhub.spawner import Spawner
@@ -16,14 +14,13 @@ __all__ = ['SGESpawner']
 
 class SGESpawner(Spawner):
 
-    sge_env = Dict({}, config=True,
-                   help="Extra SGE environment variables needed to submit a job ")
     sge_template = Unicode('', config=True,
                    help="Filename of Jinja 2 template for a SGE batch job script")
 
     def __init__(self, *args, **kwargs):
         super(SGESpawner, self).__init__(*args, **kwargs)
         self.cmd_prefix = ['sudo', '-u', self.user.name]
+        self.jobid = None
 
     def qstat_t(self, jobid, column):
         """
@@ -47,7 +44,7 @@ class SGESpawner(Spawner):
         """
         qstat_columns = {'state': 4, 'host': 7}
         ret = run(self.cmd_prefix + ['qstat', '-t'],
-                             stdout=PIPE, env=self.env)
+                             stdout=PIPE, env=self.get_env())
 
         jobinfo = ret.stdout.decode('utf-8')
 
@@ -60,30 +57,32 @@ class SGESpawner(Spawner):
         return state
 
     def load_state(self, state):
+        """Load state from the database."""
         super(SGESpawner, self).load_state(state)
         if 'jobid' in state:
             self.jobid = state['jobid']
 
     def get_state(self):
+        """Get the current state."""
         state = super(SGESpawner, self).get_state()
         if self.jobid:
             state['jobid'] = self.jobid
         return state
 
     def clear_state(self):
+        """Clear any state (called after shutdown)."""
         super(SGESpawner, self).clear_state()
         self.jobid = None
-
-    def _env_default(self):
-        env = super(SGESpawner, self)._env_default()
-        env.update(self.sge_env)
-
-        return env
 
     @gen.coroutine
     def start(self):
         """
-        Submit the job to the queue and wait for it to start.
+        Submit the (single-user Jupyter server) job to SGE and wait for it to start.
+
+        Also stores the IP and port of the single-user server in self.user.server.
+
+        NB you can relax the Spawner.start_timeout config value as necessary to
+        ensure that the SGE job is given enough time to start.
         """
         self.user.server.port = random_port()
 
@@ -93,7 +92,8 @@ class SGESpawner(Spawner):
             # some arguments for the single-user Jupyter server process
             batch_job_submission_script = jinja2.Template(f.read()).render(
                 working_dir='/home/{}'.format(self.user.name),
-                jh_args=' '.join(self.get_args()))
+                jh_args=' '.join(self.get_args()),
+                user_options=self.user_options)
 
         self.log.info("SGE: batch job sub script: '{}'".format(
             batch_job_submission_script))
@@ -106,12 +106,11 @@ class SGESpawner(Spawner):
         cmd.extend(['qsub', '-v', 'JPY_API_TOKEN'])
         self.log.info("SGE: CMD: {}".format(cmd))
 
-        env = self.env.copy()
         self.proc = Popen(cmd,
                           stdout=PIPE,
                           stdin=PIPE,
                           stderr=STDOUT,
-                          env=env)
+                          env=self.get_env())
         # Pipe the batch job submission script (filled-in Jinja2 template)
         # to the job submission script (saves having to create a temporary
         # file and deal with permissions)
@@ -138,17 +137,28 @@ class SGESpawner(Spawner):
 
     @gen.coroutine
     def stop(self, now=False):
+        """Stop the SGESpawner session.
+
+        A Tornado coroutine that returns when the process has finished exiting.
+        """
         if self.jobid:
             ret = Popen(self.cmd_prefix +
                         ['qdel', '{}'.format(self.jobid)],
-                        env=self.env)
+                        env=self.get_env())
             self.log.info("SGE: {}".format(ret))
 
     @gen.coroutine
     def poll(self):
+        """Checks if the SGESpawner session is still running.
+
+        Returns None if it is still running and an integer exit status otherwise
+        """
+        if self.jobid is None:
+            return 0
         state = self.qstat_t(self.jobid, 'state')
         if state:
             if state == 'r':
+                # The session is running
                 return None
             else:  # qw is not an option here.
                 return 1
