@@ -124,7 +124,7 @@ class SGESpawner(Spawner):
         # Wait until the worker session has started
         state = self.qstat_t(jid, 'state')
         while state != 'r':
-            time.sleep(2)
+            yield gen.sleep(2.0)
             state = self.qstat_t(jid, 'state')
             self.log.info("SGE: Job State: {}".format(state))
 
