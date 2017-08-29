@@ -11,11 +11,14 @@ setup(
     name='sgespawner',
     packages=['sgespawner'],
     version=main_ns['__version__'],
+    author='Will Furnass',
+    author_email='w.furnass@sheffield.ac.uk',
     license="BSD",
     classifiers=[
-        'Development Status :: 3 - Alpha',
-        'Topic :: Utilities',
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: System Administrators',
         'License :: OSI Approved :: BSD License',
+        'Topic :: Utilities',
     ],
     install_requires=[
         'markdown',
