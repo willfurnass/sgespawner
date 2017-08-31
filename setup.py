@@ -13,6 +13,7 @@ setup(
     version=main_ns['__version__'],
     author='Will Furnass',
     author_email='w.furnass@sheffield.ac.uk',
+    url='https://github.com/willfurnass/sgespawner',
     license="BSD",
     classifiers=[
         'Development Status :: 4 - Beta',
