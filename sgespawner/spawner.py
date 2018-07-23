@@ -1,9 +1,8 @@
-import time
 from subprocess import Popen, PIPE, STDOUT, run
 
 import jinja2
 from tornado import gen
-from traitlets import Unicode
+from traitlets import List, Unicode
 
 from jupyterhub.utils import random_port
 from jupyterhub.spawner import Spawner
@@ -15,7 +14,21 @@ __all__ = ['SGESpawner']
 class SGESpawner(Spawner):
 
     sge_template = Unicode('', config=True,
-                   help="Filename of Jinja 2 template for a SGE batch job script")
+        help="Filename of Jinja 2 template for a SGE batch job script")
+
+    jh_env_vars_for_job = List([
+        "JPY_API_TOKEN",
+        "JUPYTERHUB_API_TOKEN",
+        "JUPYTERHUB_CLIENT_ID",
+        "JUPYTERHUB_HOST",
+        "JUPYTERHUB_OAUTH_CALLBACK_URL",
+        "JUPYTERHUB_USER",
+        "JUPYTERHUB_API_URL",
+        "JUPYTERHUB_BASE_URL",
+        "JUPYTERHUB_SERVICE_PREFIX"
+        ],
+        config=False,
+        help="JupyterHub-related environment variables to pass to SGE job")
 
     def __init__(self, *args, **kwargs):
         super(SGESpawner, self).__init__(*args, **kwargs)
@@ -44,7 +57,7 @@ class SGESpawner(Spawner):
         """
         qstat_columns = {'state': 4, 'host': 7}
         ret = run(self.cmd_prefix + ['qstat', '-t'],
-                             stdout=PIPE, env=self.get_env())
+                  stdout=PIPE, env=self.get_env())
 
         jobinfo = ret.stdout.decode('utf-8')
 
@@ -103,7 +116,7 @@ class SGESpawner(Spawner):
         cmd = self.cmd_prefix.copy()
         # Ensure the JupyterHub API token is defined in
         # the worker session
-        cmd.extend(['qsub', '-v', 'JPY_API_TOKEN'])
+        cmd.extend(['qsub', '-v', ','.join(self.jh_env_vars_for_job)])
         self.log.info("SGE: CMD: {}".format(cmd))
 
         self.proc = Popen(cmd,
