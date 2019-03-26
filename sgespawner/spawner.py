@@ -1,11 +1,11 @@
 from subprocess import Popen, PIPE, STDOUT, run
 
 import jinja2
-from tornado import gen
-from traitlets import List, Unicode
-
+from defusedxml import ElementTree as ET
 from jupyterhub.utils import random_port
 from jupyterhub.spawner import Spawner
+from tornado import gen
+from traitlets import List, Unicode
 
 
 __all__ = ['SGESpawner']
@@ -55,19 +55,20 @@ class SGESpawner(Spawner):
         result : `string`
             The value of the column, or None if the job can not be found
         """
-        qstat_columns = {'state': 4, 'host': 7}
-        ret = run(self.cmd_prefix + ['qstat', '-t'],
-                  stdout=PIPE, env=self.get_env())
+        cmd = self.cmd_prefix + ['qstat', '-t', '-xml', '-u', self.user.name]
+        qstat_output = run(cmd, stdout=PIPE, env=self.get_env())
+        jobinfo = qstat_output.stdout.decode('utf-8')
+        root = ET.fromstring(jobinfo)
 
-        jobinfo = ret.stdout.decode('utf-8')
-
-        state = None
-        for line in jobinfo.split('\n'):
-            line = line.strip()
-            if line.startswith('{}'.format(jobid)):
-                state = line.split()[qstat_columns[column]]
-
-        return state
+        xpath_template = "queue_info/job_list[JB_job_number='{}']"
+        job_node = root.find(xpath_template.format(jobid))
+        ret = None
+        if len(job_node) >= 1:
+            if column == 'host':
+                ret = job_node.find('queue_name').text  # .split('@')[1]
+            else:  # column == 'state'
+                ret = job_node.find('state').text
+        return ret
 
     def load_state(self, state):
         """Load state from the database."""
@@ -97,7 +98,7 @@ class SGESpawner(Spawner):
         NB you can relax the Spawner.start_timeout config value as necessary to
         ensure that the SGE job is given enough time to start.
         """
-        self.user.server.port = random_port()
+        self.port = random_port()
 
         # Open a (Jinja2) template for a batch job
         with open(self.sge_template, 'r') as f:
@@ -146,7 +147,8 @@ class SGESpawner(Spawner):
         host = host.split('@')[1].split('.')[0]
         self.log.info("SGE: The single user server"
                       " is running on: {}".format(host))
-        self.user.server.ip = host
+        self.host = host
+        return (host, self.port)
 
     @gen.coroutine
     def stop(self, now=False):
