@@ -63,7 +63,7 @@ class SGESpawner(Spawner):
         xpath_template = "queue_info/job_list[JB_job_number='{}']"
         job_node = root.find(xpath_template.format(jobid))
         ret = None
-        if len(job_node) >= 1:
+        if job_node is not None and len(job_node) >= 1:
             if column == 'host':
                 ret = job_node.find('queue_name').text  # .split('@')[1]
             else:  # column == 'state'
